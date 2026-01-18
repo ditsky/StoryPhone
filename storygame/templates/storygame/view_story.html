@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title.title }}</title>
+    <style>
+        body {
+            font-family: Georgia, serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fafaf8;
+            line-height: 1.8;
+        }
+        .story-header {
+            text-align: center;
+            border-bottom: 2px solid #333;
+            padding-bottom: 30px;
+            margin-bottom: 40px;
+        }
+        .story-title {
+            font-size: 36px;
+            font-weight: bold;
+            color: #333;
+            margin: 0 0 15px 0;
+        }
+        .story-meta {
+            color: #666;
+            font-size: 14px;
+        }
+        .pages-container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .page-section {
+            margin-bottom: 50px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #eee;
+        }
+        .page-section:last-child {
+            border-bottom: none;
+        }
+        .page-number {
+            color: #999;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        .page-content {
+            font-size: 16px;
+            color: #333;
+            line-height: 1.8;
+            text-align: justify;
+        }
+        .page-timestamp {
+            color: #999;
+            font-size: 12px;
+            margin-top: 15px;
+        }
+        .empty-message {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .button-group {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #eee;
+        }
+        a, button {
+            display: inline-block;
+            padding: 12px 24px;
+            text-decoration: none;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        .btn-add {
+            background-color: #28a745;
+            color: white;
+        }
+        .btn-add:hover {
+            background-color: #218838;
+        }
+        .btn-back {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-back:hover {
+            background-color: #5a6268;
+        }
+        .btn-draw {
+            background-color: #fd7e14;
+            color: white;
+        }
+        .btn-draw:hover {
+            background-color: #e0610f;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .stat {
+            background-color: #f0f0f0;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="story-header">
+        <h1 class="story-title">{{ title.title }}</h1>
+        <div class="story-meta">
+            <div class="stats">
+                <div class="stat">📄 {{ page_count }} Page{{ page_count|pluralize }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="pages-container">
+        {% if pages %}
+            {% for page in pages %}
+                <div class="page-section">
+                    <div class="page-number">Page {{ page.page_number }}</div>
+                    <div class="page-content">
+                        {{ page.content }}
+                    </div>
+                    {% if page.drawing %}
+                        <div style="margin: 15px 0;">
+                            <img src="{{ page.drawing }}" alt="Drawing" style="max-width: 100%; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        </div>
+                    {% endif %}
+                    <div class="page-timestamp">
+                        📅 {{ page.created_at|date:"F d, Y \a\t H:i" }}
+                    </div>
+                    <div style="margin-top: 15px;">
+                        <a href="{% url 'storygame:draw_on_page' page.id %}" class="btn-draw" style="display: inline-block; padding: 10px 15px; margin: 0; border-radius: 5px; text-decoration: none;">🎨 Draw on This Page</a>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-message">
+                <p>This story has no pages yet. Start writing!</p>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="button-group">
+        <a href="{% url 'storygame:add_story_page_with_id' title.id %}" class="btn-add">📝 Add New Page</a>
+        <a href="{% url 'storygame:story_list' %}" class="btn-back">← Back to Stories</a>
+    </div>
+</body>
+</html>
+

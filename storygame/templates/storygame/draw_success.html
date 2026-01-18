@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Drawing Saved Successfully</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            text-align: center;
+        }
+        .success-message {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .drawing-info {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .story-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        .drawing-preview {
+            margin: 20px 0;
+            max-width: 100%;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        a, button {
+            display: inline-block;
+            padding: 10px 20px;
+            text-decoration: none;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+    </style>
+</head>
+<body>
+    <h1>✓ Drawing Saved Successfully!</h1>
+
+    <div class="success-message">
+        <p>Your drawing has been saved to the database.</p>
+    </div>
+
+    <div class="drawing-info">
+        <div class="story-title">Story: {{ title.title }}</div>
+        <p>Page {{ page.page_number }}</p>
+        {% if page.drawing %}
+            <img src="{{ page.drawing }}" alt="Drawing" class="drawing-preview">
+        {% endif %}
+    </div>
+
+    <div class="button-group">
+        <a href="{% url 'storygame:draw_on_page' page.id %}" class="btn-primary">Draw Again</a>
+        <a href="{% url 'storygame:view_story' title.id %}" class="btn-secondary">Back to Story</a>
+    </div>
+</body>
+</html>
+

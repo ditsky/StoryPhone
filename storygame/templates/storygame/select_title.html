@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Select a Story Title</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .title-list {
+            list-style: none;
+            padding: 0;
+        }
+        .title-item {
+            padding: 10px;
+            margin: 10px 0;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .title-item:hover {
+            background-color: #e0e0e0;
+        }
+        .title-item input[type="radio"] {
+            margin-right: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Select a Story</h1>
+    <p>Choose a story to add a new page to:</p>
+
+    <form method="POST">
+        {% csrf_token %}
+        <div class="title-list">
+            {% for title in titles %}
+                <label class="title-item">
+                    <input type="radio" name="title_id" value="{{ title.id }}" required>
+                    {{ title.title }}
+                </label>
+            {% empty %}
+                <p>No stories found. <a href="{% url 'storygame:create_title' %}">Create one first</a></p>
+            {% endfor %}
+        </div>
+        {% if titles %}
+            <button type="submit">Add Page to Selected Story</button>
+        {% endif %}
+    </form>
+</body>
+</html>
+

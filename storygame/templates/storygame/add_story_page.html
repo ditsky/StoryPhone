@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Story Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        textarea {
+            padding: 10px;
+            font-size: 16px;
+            margin-bottom: 10px;
+            min-height: 300px;
+            font-family: Arial, sans-serif;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px;
+            font-size: 16px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        .story-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .story-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        .page-number {
+            color: #666;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Add a New Page</h1>
+
+    <div class="story-info">
+        <div class="story-title">Story: {{ title.title }}</div>
+        <div class="page-number">Pages: {{ title.pages.count }}</div>
+    </div>
+
+    <form method="POST">
+        {% csrf_token %}
+        <textarea name="content" placeholder="Write your story page here..." required></textarea>
+        <button type="submit">Save Page</button>
+    </form>
+</body>
+</html>
+
