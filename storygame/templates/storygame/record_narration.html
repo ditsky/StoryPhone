@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Record Narration - {{ title.title }} - Page {{ page.page_number }}</title>
+    <style>
+        body { font-family: Georgia, serif; max-width: 800px; margin: 40px auto; background:#fafaf8; padding:20px }
+        .controls { margin-top: 20px }
+        button { padding: 10px 14px; margin-right: 8px }
+        .status { margin-top: 12px; color: #333 }
+    </style>
+</head>
+<body>
+    <h1>{{ title.title }} — Page {{ page.page_number }}</h1>
+    <div class="page-content">
+        <p>{{ page.content }}</p>
+        {% if page.drawing %}
+            <div style="margin-top:12px;"><img src="{{ page.drawing }}" alt="Drawing" style="max-width:100%"></div>
+        {% endif %}
+    </div>
+
+    <div class="controls">
+        <button id="recordBtn">⏺ Record</button>
+        <button id="stopBtn" disabled>⏹ Stop</button>
+        <button id="playBtn" disabled>▶ Play</button>
+        <button id="uploadBtn" disabled>⬆ Upload</button>
+        <div class="status" id="status">Ready to record.</div>
+    </div>
+
+    {# Render a csrf_token into the template so JS can read it directly #}
+    {% csrf_token %}
+
+    <script>
+        // Pre-rendered success URL
+        const successUrl = "{% url 'storygame:narrate_success' page.id %}";
+        // CSRF token: prefer the template-provided token, fall back to cookie
+        const templateCsrfToken = "{{ csrf_token }}";
+        function getCsrfTokenFromCookie() {
+            const name = 'csrftoken=';
+            const cookies = document.cookie.split(';');
+            for (let c of cookies) {
+                c = c.trim();
+                if (c.startsWith(name)) return c.substring(name.length);
+            }
+            return '';
+        }
+        const csrftoken = templateCsrfToken || getCsrfTokenFromCookie();
+
+        // Simple MediaRecorder-based recorder that converts Blob to base64 data URL
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordedBlob;
+
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const playBtn = document.getElementById('playBtn');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const status = document.getElementById('status');
+
+        recordBtn.addEventListener('click', async () => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                status.textContent = 'Media devices not available in this browser.';
+                return;
+            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstart = () => {
+                    status.textContent = 'Recording...';
+                    recordBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    playBtn.disabled = true;
+                    uploadBtn.disabled = true;
+                };
+                mediaRecorder.onstop = () => {
+                    recordedBlob = new Blob(audioChunks, { type: audioChunks[0]?.type || 'audio/webm' });
+                    status.textContent = 'Recording stopped.';
+                    playBtn.disabled = false;
+                    uploadBtn.disabled = false;
+                };
+                mediaRecorder.start();
+            } catch (err) {
+                status.textContent = 'Could not start recording: ' + err;
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                recordBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        });
+
+        playBtn.addEventListener('click', () => {
+            if (!recordedBlob) return;
+            const url = URL.createObjectURL(recordedBlob);
+            const audio = new Audio(url);
+            audio.play();
+        });
+
+        uploadBtn.addEventListener('click', () => {
+            if (!recordedBlob) return;
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const dataUrl = reader.result; // e.g. data:audio/webm;base64,....
+                status.textContent = 'Uploading...';
+
+                fetch(window.location.href, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken,
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ audio_data: dataUrl })
+                }).then(r => {
+                    if (!r.ok) throw new Error('Upload failed ' + r.statusText);
+                    return r.json();
+                }).then(data => {
+                    status.textContent = 'Upload successful.';
+                    // Redirect to success page
+                    window.location.href = successUrl;
+                }).catch(err => {
+                    status.textContent = 'Upload error: ' + err;
+                });
+            };
+            reader.readAsDataURL(recordedBlob);
+        });
+    </script>
+</body>
+</html>

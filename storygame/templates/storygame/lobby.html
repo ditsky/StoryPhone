@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Lobby {{ lobby.code }}</title>
+  <style>body{font-family:Arial,Helvetica,sans-serif;}</style>
+</head>
+<body>
+  <h1>Lobby {{ lobby.code }}</h1>
+  <p>Host: {{ lobby.host_name }}</p>
+  <form style="display:none">{% csrf_token %}</form>
+  <div>
+    <h3>Participants</h3>
+    <ul id="participants">
+      {% for p in participants %}
+        <li data-id="{{ p.id }}">{{ p.name }} — <span class="role">{{ p.role }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div id="assign-controls" style="display:block; margin-top:20px;">
+    <h3>Assign Roles</h3>
+    <select id="participantSelect"></select>
+    <select id="roleSelect">
+      <option value="writer">Writer</option>
+      <option value="artist">Artist</option>
+      <option value="narrator">Narrator</option>
+    </select>
+    <button id="assignBtn">Assign</button>
+    <div id="status" style="margin-top:10px;color:#555"></div>
+  </div>
+
+  <div id="host-controls" style="margin-top:20px;">
+    {% if is_host %}
+      <button id="startBtn">Start Game</button>
+      <div id="startStatus" style="color:#555;margin-top:8px"></div>
+    {% endif %}
+  </div>
+
+  <script>
+    const lobbyCode = "{{ lobby.code }}";
+    const wsProtocol = (location.protocol === 'https:') ? 'wss' : 'ws';
+    const wsUrl = `${wsProtocol}://${location.host}/ws/lobby/${lobbyCode}/`;
+    const socket = new WebSocket(wsUrl);
+
+    const participantsUl = document.getElementById('participants');
+    let participantSelect = document.getElementById('participantSelect');
+    const roleSelect = document.getElementById('roleSelect');
+    const assignBtn = document.getElementById('assignBtn');
+    // Keep track of a user-made selection so background refreshes don't override it
+    let userSelected = null;
+    if (participantSelect) {
+      participantSelect.addEventListener('change', () => {
+        userSelected = participantSelect.value;
+      });
+    }
+
+    // Read the participant name from URL 'name' param or localStorage; prompt if missing
+    function getQueryParam(key) {
+      const params = new URLSearchParams(window.location.search);
+      return params.get(key);
+    }
+
+    function setQueryParam(key, value) {
+      const params = new URLSearchParams(window.location.search);
+      params.set(key, value);
+      const newUrl = window.location.pathname + '?' + params.toString();
+      window.history.replaceState({}, '', newUrl);
+    }
+
+    function getCsrfToken() {
+      const name = 'csrftoken=';
+      const cookies = document.cookie.split(';');
+      for (let c of cookies) {
+        c = c.trim();
+        if (c.startsWith(name)) return c.substring(name.length);
+      }
+      return '';
+    }
+
+    // Server-injected CSRF token (fallback to cookie if not set)
+    const serverCsrf = "{{ csrf_token_value|default:'' }}";
+
+    // Prefer server-provided initial_name (if present) to avoid re-prompting the host after redirect
+    const initialName = "{{ initial_name|escapejs }}";
+    let participantName = initialName || getQueryParam('name') || localStorage.getItem('lobby_name');
+    if (!participantName) {
+      participantName = prompt('Enter your display name for the lobby:', 'Guest') || 'Guest';
+      localStorage.setItem('lobby_name', participantName);
+      // add name to URL so a post-join redirect can persist it
+      setQueryParam('name', participantName);
+    } else {
+      // persist into localStorage for reconnects
+      localStorage.setItem('lobby_name', participantName);
+      // leave the URL as-is (it may already contain name from server redirect)
+    }
+
+    // Determine host status and hide assign controls for non-hosts
+    const hostName = "{{ lobby.host_name|escapejs }}";
+    const isHost = participantName === hostName;
+    const assignControlsEl = document.getElementById('assign-controls');
+    if (!isHost) {
+      // hide the assign controls for non-hosts; server still enforces authorization
+      if (assignControlsEl) assignControlsEl.style.display = 'none';
+    }
+
+    function renderParticipants(list) {
+      if (!participantsUl) return;
+      // If there's no select, still update the UL but skip select logic
+      const hasSelect = !!participantSelect;
+
+      // Prefer user's manual selection (if any); otherwise preserve current selection
+      const previousSelection = userSelected || (hasSelect ? participantSelect.value : null);
+
+      // Build arrays of IDs to determine whether structure/order changed
+      const newIds = list.map(p => String(p.id));
+      const existingIds = hasSelect ? Array.from(participantSelect.options).map(o => String(o.value)) : [];
+
+      // If the IDs/order didn't change, only update role text in-place to avoid disturbing selection
+      const sameStructure = hasSelect && existingIds.length === newIds.length && existingIds.every((v, i) => v === newIds[i]);
+      if (sameStructure && existingIds.length > 0) {
+        // update list items and select option labels
+        list.forEach(p => {
+          const li = participantsUl.querySelector(`li[data-id="${p.id}"]`);
+          if (li) {
+            const roleSpan = li.querySelector('.role');
+            if (roleSpan) roleSpan.textContent = p.role;
+            else li.innerHTML = `${p.name} — <span class="role">${p.role}</span>`;
+          } else {
+            // if missing, create it
+            const newLi = document.createElement('li');
+            newLi.dataset.id = p.id;
+            newLi.innerHTML = `${p.name} — <span class="role">${p.role}</span>`;
+            participantsUl.appendChild(newLi);
+          }
+
+          if (hasSelect) {
+            const opt = participantSelect.querySelector(`option[value="${p.id}"]`);
+            if (opt) opt.text = p.name + ' (' + p.role + ')';
+          }
+         });
+
+         // Restore previous selection if still present
+         if (previousSelection) {
+          if (hasSelect) {
+            const found = Array.from(participantSelect.options).some(o => o.value === previousSelection);
+            if (found) participantSelect.value = previousSelection;
+          }
+         }
+         if (hasSelect) userSelected = participantSelect.value;
+         if (assignBtn && hasSelect) assignBtn.disabled = participantSelect.options.length === 0;
+         return;
+       }
+
+       // Otherwise rebuild the participant list and select
+       participantsUl.innerHTML = '';
+      if (hasSelect) participantSelect.innerHTML = '';
+       list.forEach(p => {
+         const li = document.createElement('li');
+         li.dataset.id = p.id;
+         li.innerHTML = `${p.name} — <span class="role">${p.role}</span>`;
+         participantsUl.appendChild(li);
+
+         if (hasSelect) {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.text = p.name + ' (' + p.role + ')';
+          participantSelect.appendChild(opt);
+         }
+       });
+
+       // Restore previous selection if still present; otherwise leave default
+      if (previousSelection && hasSelect) {
+        const found = Array.from(participantSelect.options).some(o => o.value === previousSelection);
+        if (found) participantSelect.value = previousSelection;
+      }
+      // If we restored a user selection, keep it recorded
+      if (hasSelect) userSelected = participantSelect.value;
+      // Disable assign button if there are no participants
+      if (assignBtn && hasSelect) assignBtn.disabled = participantSelect.options.length === 0;
+     }
+
+     // Seed participantSelect from server-rendered UL so assignment works immediately
+     function seedFromDomParticipants() {
+      if (!participantsUl) return;
+      const lis = participantsUl.querySelectorAll('li');
+      // If the participantSelect element doesn't exist in the DOM for some reason, create it
+      // so assignment UI can function. Insert it before the roleSelect if present.
+      let sel = participantSelect;
+      if (!sel) {
+        sel = document.createElement('select');
+        sel.id = 'participantSelect';
+        // Try to insert before roleSelect if present
+        if (roleSelect && roleSelect.parentNode) {
+          roleSelect.parentNode.insertBefore(sel, roleSelect);
+        } else {
+          // Fallback: append to assign-controls
+          const container = document.getElementById('assign-controls');
+          if (container) container.insertBefore(sel, container.firstChild);
+        }
+      }
+      sel.innerHTML = '';
+      // If we created a new select element, ensure the outer-scope variable points to it
+      if (!participantSelect) participantSelect = sel;
+      // Attach change listener to newly created select so `userSelected` is kept in sync
+      if (participantSelect && !participantSelect.__hasChangeListener) {
+        participantSelect.addEventListener('change', () => { userSelected = participantSelect.value; });
+        participantSelect.__hasChangeListener = true;
+      }
+       lis.forEach(li => {
+         const id = li.dataset.id;
+         const text = li.textContent.trim();
+         if (id) {
+           const opt = document.createElement('option');
+           opt.value = id;
+           opt.text = text;
+           sel.appendChild(opt);
+         }
+       });
+      if (assignBtn) assignBtn.disabled = sel.options.length === 0;
+     }
+
+     // Run initial seeding from server-rendered HTML
+     seedFromDomParticipants();
+    // Also fetch participants immediately (and a couple times shortly after) to ensure the select is populated
+    // (covers cases where server-rendered HTML wasn't present or JS ran before it was available).
+    fetchParticipants();
+    setTimeout(fetchParticipants, 300);
+    setTimeout(fetchParticipants, 1000);
+
+    // If after a few attempts the participants list doesn't include this client, attempt an HTTP join
+    // to create a Participant record as a robust fallback (covers missed WS joins).
+    let autoJoinAttempts = 0;
+    const maxAutoJoinAttempts = 3;
+    const autoJoinInterval = setInterval(async () => {
+      autoJoinAttempts += 1;
+      try {
+        const resp = await fetch(`/lobby/${lobbyCode}/participants/`, { credentials: 'same-origin' });
+        if (resp.ok) {
+          const data = await resp.json();
+          const foundMe = data.participants.some(p => p.name === participantName);
+          if (foundMe) {
+            // we're present, stop attempting
+            clearInterval(autoJoinInterval);
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      if (autoJoinAttempts >= maxAutoJoinAttempts) {
+        // perform a join POST to ensure a participant record exists
+        try {
+          const csrf = serverCsrf || getCsrfToken();
+          await fetch('/lobby/join/', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': csrf,
+            },
+            body: `code=${encodeURIComponent(lobbyCode)}&name=${encodeURIComponent(participantName)}`,
+          });
+          // re-fetch participants after join attempt
+          setTimeout(fetchParticipants, 200);
+        } catch (e) {
+          console.warn('Auto-join failed', e);
+        } finally {
+          clearInterval(autoJoinInterval);
+        }
+      }
+    }, 800);
+
+    async function fetchParticipants() {
+       try {
+         const resp = await fetch(`/lobby/${lobbyCode}/participants/`, { credentials: 'same-origin' });
+         if (!resp.ok) return;
+         const data = await resp.json();
+         renderParticipants(data.participants);
+         // If lobby started flag is set, route appropriately (handles polling clients)
+         if (data.started) {
+           const participants = data.participants || [];
+           const me_id = window.__lobby_me_id || null;
+           let me = null;
+           if (me_id) me = participants.find(p => String(p.id) === String(me_id));
+           if (!me) me = participants.find(p => p.name === participantName);
+           if (me && me.role === 'writer') {
+             window.location.href = `/create-title/?lobby=${encodeURIComponent(lobbyCode)}`;
+           } else {
+             window.location.href = `/lobby/${lobbyCode}/waiting/`;
+           }
+           return;
+         }
+       } catch (err) {
+         console.warn('Failed to fetch participants', err);
+       }
+     }
+
+    socket.addEventListener('open', () => {
+      console.log('WS open');
+      // Send a join message so the server knows to create a participant for WS-only joins
+      // Include me_id if we already know it (e.g., after an HTTP join), otherwise server will create
+      const joinPayload = {type:'join', name: participantName};
+      if (window.__lobby_me_id) joinPayload.me_id = window.__lobby_me_id;
+      socket.send(JSON.stringify(joinPayload));
+      // Immediately fetch participants as a fallback
+      fetchParticipants();
+    });
+
+    socket.addEventListener('message', (event) => {
+      console.log('WS message', event.data);
+      const data = JSON.parse(event.data);
+      if (data.type === 'participants') {
+        // store me_id if provided
+        if (data.me_id) window.__lobby_me_id = data.me_id;
+        renderParticipants(data.participants);
+      } else if (data.type === 'start') {
+        // existing start handler
+        (async () => {
+          try {
+            const resp = await fetch(`/lobby/${lobbyCode}/participants/`, { credentials: 'same-origin' });
+            if (!resp.ok) {
+              // fallback to the event payload
+              const participants = data.participants || [];
+              const me_id = data.me_id || window.__lobby_me_id || null;
+              let me = null;
+              if (me_id) me = participants.find(p => p.id === me_id);
+              if (!me) me = participants.find(p => p.name === participantName);
+              if (me && me.role === 'writer') window.location.href = `/create-title/?lobby=${encodeURIComponent(lobbyCode)}`;
+              else window.location.href = `/lobby/${lobbyCode}/waiting/`;
+              return;
+            }
+            const payload = await resp.json();
+            const participants = payload.participants || [];
+            const me_id = window.__lobby_me_id || data.me_id || null;
+            let me = null;
+            if (me_id) me = participants.find(p => String(p.id) === String(me_id));
+            if (!me) me = participants.find(p => p.name === participantName);
+            if (me && me.role === 'writer') window.location.href = `/create-title/?lobby=${encodeURIComponent(lobbyCode)}`;
+            else window.location.href = `/lobby/${lobbyCode}/waiting/`;
+          } catch (err) {
+            console.warn('Start handling fallback failed', err);
+            // final fallback: use event payload
+            const participants = data.participants || [];
+            const me_id = data.me_id || window.__lobby_me_id || null;
+            let me = null;
+            if (me_id) {
+              me = participants.find(p => p.id === me_id);
+            }
+            if (!me) {
+              me = participants.find(p => p.name === participantName);
+            }
+            if (me && me.role === 'writer') window.location.href = `/create-title/?lobby=${encodeURIComponent(lobbyCode)}`;
+            else window.location.href = `/lobby/${lobbyCode}/waiting/`;
+          }
+        })();
+       } else if (data.type === 'title_created') {
+        // A new title + first page was created by the writer; route participants by role
+        (async () => {
+          try {
+            // Try to fetch authoritative participants list
+            const resp = await fetch(`/lobby/${lobbyCode}/participants/`, { credentials: 'same-origin' });
+            let participants = [];
+            if (resp.ok) {
+              const payload = await resp.json();
+              participants = payload.participants || [];
+            } else {
+              // fallback to event payload
+              participants = data.participants || [];
+            }
+
+            const me_id = window.__lobby_me_id || data.me_id || null;
+            let me = null;
+            if (me_id) me = participants.find(p => String(p.id) === String(me_id));
+            if (!me) me = participants.find(p => p.name === participantName);
+
+            const pageId = data.page_id || null;
+            const titleId = data.title_id || null;
+            if (me && pageId) {
+              if (me.role === 'artist') {
+                window.location.href = `/draw/${encodeURIComponent(pageId)}/`;
+              } else if (me.role === 'narrator') {
+                window.location.href = `/narrate/${encodeURIComponent(pageId)}/`;
+              } else if (me.role === 'writer' && titleId) {
+                // send writer to add the story page content for the title
+                window.location.href = `/add-page/${encodeURIComponent(titleId)}/`;
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to handle title_created', err);
+            // fallback: use event payload and role from participants array
+            try {
+              const participants = data.participants || [];
+              const me_id = data.me_id || window.__lobby_me_id || null;
+              let me = null;
+              if (me_id) me = participants.find(p => String(p.id) === String(me_id));
+              if (!me) me = participants.find(p => p.name === participantName);
+              const pageId = data.page_id || null;
+              const titleId = data.title_id || null;
+              if (me && pageId) {
+                if (me.role === 'artist') window.location.href = `/draw/${encodeURIComponent(pageId)}/`;
+                else if (me.role === 'narrator') window.location.href = `/narrate/${encodeURIComponent(pageId)}/`;
+                else if (me.role === 'writer' && titleId) window.location.href = `/add-page/${encodeURIComponent(titleId)}/`;
+              }
+            } catch (e) {
+              console.error('Final fallback for title_created failed', e);
+            }
+          }
+        })();
+       }
+    });
+
+    socket.addEventListener('error', (ev) => {
+      console.error('WebSocket error', ev);
+    });
+
+    socket.addEventListener('close', (ev) => {
+      console.warn('WebSocket closed', ev);
+    });
+
+    // Poll every 2 seconds as a robust fallback in case websocket broadcasts are missed
+    setInterval(fetchParticipants, 2000);
+
+    if (assignBtn) {
+      assignBtn.addEventListener('click', () => {
+       const participant_id = participantSelect.value;
+       const role = roleSelect.value;
+       if (!participant_id) {
+         alert('Please select a participant first');
+         return;
+       }
+       console.log('Assigning', participant_id, role);
+
+       // Optimistic UI update: update the participant DOM immediately
+       (function optimisticUpdate(id, newRole) {
+         const li = participantsUl.querySelector(`li[data-id="${id}"]`);
+         if (li) {
+           const name = li.textContent.split('—')[0].trim();
+           li.innerHTML = `${name} — <span class="role">${newRole}</span>`;
+         }
+         // update select option text as well
+         if (participantSelect) {
+          const opt = participantSelect.querySelector(`option[value="${id}"]`);
+          if (opt) opt.text = (opt.text.split('(')[0].trim()) + ` (${newRole})`;
+         }
+       })(participant_id, role);
+
+       // Primary: HTTP POST to assign API with CSRF and credentials
+       const csrf = serverCsrf || getCsrfToken();
+       fetch(`/lobby/${lobbyCode}/assign/`, {
+         method: 'POST',
+         credentials: 'same-origin',
+         headers: {
+           'Content-Type': 'application/x-www-form-urlencoded',
+           'X-CSRFToken': csrf,
+         },
+         body: `participant_id=${encodeURIComponent(participant_id)}&role=${encodeURIComponent(role)}&requester_name=${encodeURIComponent(participantName)}`
+       }).then(r => {
+         if (!r.ok) return r.text().then(t => { throw new Error('HTTP assign failed ' + r.status + ': ' + t); });
+         return r.json();
+       }).then(data => {
+         renderParticipants(data.participants);
+         document.getElementById('status').textContent = 'Assigned successfully.';
+       }).catch(err => {
+         console.warn('HTTP assign failed, falling back to WS', err);
+         document.getElementById('status').textContent = 'Assign failed: ' + err.message;
+         try {
+           socket.send(JSON.stringify({type:'assign', participant_id: participant_id, role: role}));
+           // give server a moment to broadcast via WS then refresh
+           setTimeout(fetchParticipants, 300);
+         } catch (wsErr) {
+           console.error('WS send failed', wsErr);
+           document.getElementById('status').textContent += ' ; WS fallback failed.';
+         }
+       }).finally(() => {
+         // Ensure UI refresh
+         setTimeout(fetchParticipants, 500);
+       });
+      });
+    }
+
+    // Add Start button handler (host-only). Use the same CSRF token approach as assign.
+    const startBtn = document.getElementById('startBtn');
+    if (startBtn) {
+      startBtn.addEventListener('click', () => {
+        const csrf = serverCsrf || getCsrfToken();
+        startBtn.disabled = true;
+        startBtn.textContent = 'Starting...';
+        fetch(`/lobby/${lobbyCode}/start/`, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrf,
+          },
+          body: `requester_name=${encodeURIComponent(participantName)}`
+        }).then(r => {
+          if (!r.ok) return r.text().then(t => { throw new Error('Start failed ' + r.status + ': ' + t); });
+          return r.json();
+        }).then(data => {
+          document.getElementById('startStatus').textContent = 'Game started.';
+          // Server will broadcast 'start' which will navigate clients; as host redirect appropriately too
+          const me = data.participants.find(p => p.name === participantName);
+          if (me && me.role === 'writer') {
+            window.location.href = `/create-title/?lobby=${encodeURIComponent(lobbyCode)}`;
+          } else {
+            window.location.href = `/lobby/${lobbyCode}/waiting/`;
+          }
+        }).catch(err => {
+          console.error('Failed to start game', err);
+          document.getElementById('startStatus').textContent = 'Failed to start: ' + err.message;
+        }).finally(() => {
+          startBtn.disabled = false;
+          startBtn.textContent = 'Start Game';
+        });
+    });
+    }
+
+  </script>
+</body>
+</html>

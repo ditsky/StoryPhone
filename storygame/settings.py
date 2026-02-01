@@ -31,7 +31,6 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
-    "polls.apps.PollsConfig",
     "storygame",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -39,6 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "channels",
 ]
 
 MIDDLEWARE = [
@@ -52,6 +52,16 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "storygame.urls"
+
+# Use Channels' ASGI application
+ASGI_APPLICATION = "storygame.asgi.application"
+
+# Channel layer config - in-memory for development (not suitable for production)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
 
 TEMPLATES = [
     {
