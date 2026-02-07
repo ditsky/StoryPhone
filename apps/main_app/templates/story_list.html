@@ -111,8 +111,8 @@
                         <span class="page-count">{{ story.pages.count }} page{{ story.pages.count|pluralize }}</span>
                     </div>
                     <div class="button-group">
-                        <a href="{% url 'storygame:view_story' story.id %}" class="btn-view">Read Story</a>
-                        <a href="{% url 'storygame:add_story_page_with_id' story.id %}" class="btn-add">Add Page</a>
+                        <a href="{% url 'main_app:view_story' story.id %}" class="btn-view">Read Story</a>
+                        <a href="{% url 'main_app:add_story_page_with_id' story.id %}" class="btn-add">Add Page</a>
                     </div>
                 </div>
             {% endfor %}
@@ -120,7 +120,7 @@
     {% else %}
         <div class="empty-message">
             <p>No stories yet. Create your first story!</p>
-            <a href="{% url 'storygame:create_title' %}" class="create-btn">Create New Story</a>
+            <a href="{% url 'main_app:create_title' %}" class="create-btn">Create New Story</a>
         </div>
     {% endif %}
 </body>

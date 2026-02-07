@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('storygame', '0001_initial'),
+        ('main_app', '0001_initial'),
     ]
 
     operations = [
@@ -18,7 +18,7 @@ class Migration(migrations.Migration):
                 ('page_number', models.IntegerField()),
                 ('content', models.TextField()),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('title', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='pages', to='storygame.title')),
+                ('title', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='pages', to='main_app.title')),
             ],
             options={
                 'ordering': ['page_number'],

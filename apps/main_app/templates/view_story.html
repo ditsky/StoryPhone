@@ -144,7 +144,7 @@
                         📅 {{ page.created_at|date:"F d, Y \a\t H:i" }}
                     </div>
                     <div style="margin-top: 15px;">
-                        <a href="{% url 'storygame:draw_on_page' page.id %}" class="btn-draw" style="display: inline-block; padding: 10px 15px; margin: 0; border-radius: 5px; text-decoration: none;">🎨 Draw on This Page</a>
+                        <a href="{% url 'main_app:draw_on_page' page.id %}" class="btn-draw" style="display: inline-block; padding: 10px 15px; margin: 0; border-radius: 5px; text-decoration: none;">🎨 Draw on This Page</a>
                     </div>
                 </div>
             {% endfor %}
@@ -156,8 +156,8 @@
     </div>
 
     <div class="button-group">
-        <a href="{% url 'storygame:add_story_page_with_id' title.id %}" class="btn-add">📝 Add New Page</a>
-        <a href="{% url 'storygame:story_list' %}" class="btn-back">← Back to Stories</a>
+        <a href="{% url 'main_app:add_story_page_with_id' title.id %}" class="btn-add">📝 Add New Page</a>
+        <a href="{% url 'main_app:story_list' %}" class="btn-back">← Back to Stories</a>
     </div>
 </body>
 </html>

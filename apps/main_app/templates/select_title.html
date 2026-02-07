@@ -55,7 +55,7 @@
                     {{ title.title }}
                 </label>
             {% empty %}
-                <p>No stories found. <a href="{% url 'storygame:create_title' %}">Create one first</a></p>
+                <p>No stories found. <a href="{% url 'main_app:create_title' %}">Create one first</a></p>
             {% endfor %}
         </div>
         {% if titles %}

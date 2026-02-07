@@ -1,7 +1,7 @@
 from django.urls import path
-from storygame import views
+from apps.main_app import views
 
-app_name = "storygame"
+app_name = "main_app"
 
 urlpatterns = [
     path("create-title/", views.create_title, name="create_title"),

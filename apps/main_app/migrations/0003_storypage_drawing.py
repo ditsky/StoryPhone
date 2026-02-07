@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('storygame', '0002_storypage'),
+        ('main_app', '0002_storypage'),
     ]
 
     operations = [

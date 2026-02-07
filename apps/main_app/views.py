@@ -9,13 +9,13 @@ def create_title(request):
         title_text = request.POST.get('title', '').strip()
         if title_text:
             Title.objects.create(title=title_text)
-            return redirect('storygame:success')
-    return render(request, 'storygame/create_title.html')
+            return redirect('main_app:success')
+    return render(request, 'create_title.html')
 
 
 def success(request):
     """View to display a success message after title is saved."""
-    return render(request, 'storygame/success.html')
+    return render(request, 'success.html')
 
 
 def add_story_page(request, title_id=None):
@@ -25,10 +25,10 @@ def add_story_page(request, title_id=None):
         if request.method == 'POST':
             title_id = request.POST.get('title_id')
             if title_id:
-                return redirect('storygame:add_story_page_with_id', title_id=title_id)
+                return redirect('main_app:add_story_page_with_id', title_id=title_id)
 
         titles = Title.objects.all()
-        return render(request, 'storygame/select_title.html', {'titles': titles})
+        return render(request, 'select_title.html', {'titles': titles})
 
     # Get the title object
     title = get_object_or_404(Title, pk=title_id)
@@ -45,21 +45,21 @@ def add_story_page(request, title_id=None):
                 page_number=page_number,
                 content=content
             )
-            return redirect('storygame:page_success', title_id=title_id)
+            return redirect('main_app:page_success', title_id=title_id)
 
-    return render(request, 'storygame/add_story_page.html', {'title': title})
+    return render(request, 'add_story_page.html', {'title': title})
 
 
 def page_success(request, title_id):
     """View to display success message after story page is saved."""
     title = get_object_or_404(Title, pk=title_id)
-    return render(request, 'storygame/page_success.html', {'title': title})
+    return render(request, 'page_success.html', {'title': title})
 
 
 def story_list(request):
     """View to display all stories."""
     stories = Title.objects.all()
-    return render(request, 'storygame/story_list.html', {'stories': stories})
+    return render(request, 'story_list.html', {'stories': stories})
 
 
 def view_story(request, title_id):
@@ -72,7 +72,7 @@ def view_story(request, title_id):
         'pages': pages,
         'page_count': pages.count(),
     }
-    return render(request, 'storygame/view_story.html', context)
+    return render(request, 'view_story.html', context)
 
 
 def draw_on_page(request, page_id):
@@ -85,13 +85,13 @@ def draw_on_page(request, page_id):
         if drawing_data:
             page.drawing = drawing_data
             page.save()
-            return redirect('storygame:draw_success', page_id=page_id)
+            return redirect('main_app:draw_success', page_id=page_id)
 
     context = {
         'page': page,
         'title': title,
     }
-    return render(request, 'storygame/draw_on_page.html', context)
+    return render(request, 'draw_on_page.html', context)
 
 
 def draw_success(request, page_id):
@@ -101,6 +101,6 @@ def draw_success(request, page_id):
         'page': page,
         'title': page.title,
     }
-    return render(request, 'storygame/draw_success.html', context)
+    return render(request, 'draw_success.html', context)
 
 
